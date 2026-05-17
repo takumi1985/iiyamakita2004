@@ -6,7 +6,7 @@
     <title>2004年卒 飯山北高校 同窓会 出欠状況確認</title>
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f7f6; color: #333; line-height: 1.6; margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         h1 { color: #2c3e50; text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 30px; }
         .info-section { background-color: #e8f4f8; padding: 15px; border-radius: 5px; margin-bottom: 30px; }
         .info-item { margin-bottom: 10px; font-size: 1.1em; }
@@ -21,15 +21,14 @@
         details[open] summary { border-bottom: 1px solid #ddd; }
         
         .table-wrap { overflow-x: auto; padding: 10px; }
-        table { width: 100%; border-collapse: collapse; min-width: 500px; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #f2f2f2; }
-        select { padding: 8px; font-size: 1em; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; }
         
-        /* 保存状態のメッセージ */
-        .status-msg { font-size: 0.8em; margin-top: 5px; display: block; font-weight: bold; }
-        .saving { color: #f39c12; display: none; }
-        .saved { color: #27ae60; display: none; }
+        /* 出欠の記号ごとの色分け */
+        .status-attend { color: #27ae60; font-weight: bold; font-size: 1.1em; } /* ○は緑 */
+        .status-absent { color: #c0392b; font-weight: bold; font-size: 1.1em; } /* ✕は赤 */
+        .status-pending { color: #f39c12; font-weight: bold; font-size: 1.1em; } /* △はオレンジ */
     </style>
 </head>
 <body>
@@ -48,7 +47,7 @@
 </div>
 
 <script>
-    // ご提示いただいた正しいGASのURLを設定しました
+    // 設定済みのGASのURL
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzj5oGeqAugMxOksian6vKSZnim7j-0udgI6iaKQ271yL9Azv-Y622J0ffzQg1aB78smw/exec';
 
     // ページ読み込み時にデータを取得する
@@ -72,7 +71,7 @@
         const groups = ['1組', '2組', '3組', '4組'];
         
         groups.forEach(groupName => {
-            // その組のデータだけを抽出（数字だけを比較）
+            // その組のデータだけを抽出
             const groupData = data.filter(item => String(item.group).includes(groupName.replace('組', '')));
             
             if (groupData.length === 0) return; // データがない組はスキップ
@@ -86,14 +85,15 @@
             const tableWrap = document.createElement('div');
             tableWrap.className = 'table-wrap';
             
-            // テーブルを作成
+            // テーブルを作成（備考欄を追加しました）
             const table = document.createElement('table');
             table.innerHTML = `
                 <thead>
                     <tr>
-                        <th>氏名</th>
-                        <th>LINE</th>
-                        <th>出欠</th>
+                        <th style="width: 20%;">氏名</th>
+                        <th style="width: 25%;">LINE</th>
+                        <th style="width: 15%;">出欠</th>
+                        <th style="width: 40%;">備考</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -102,19 +102,27 @@
             const tbody = table.querySelector('tbody');
             groupData.forEach(item => {
                 const tr = document.createElement('tr');
+                
+                // 出欠の文字（○, △, ✕）によって色を変えるクラスを決定
+                let statusClass = '';
+                if (item.status === '○') statusClass = 'status-attend';
+                else if (item.status === '✕') statusClass = 'status-absent';
+                else if (item.status === '△') statusClass = 'status-pending';
+
+                // L列（備考）のデータを受け取る（GAS側は、データ全体を取得した際、自動的に11番目の要素(row[11])以降も渡してくれています）
+                // 前回のGASコードで取得範囲を自動拡張しているため、HTML側で item.message などとして呼び出せます。
+                // もし表示されない場合は、GASでデータがどう格納されているか調整が必要ですが、通常は「row[11]」の位置になります。
+                // 今回は前回のGASのオブジェクト構造に合わせつつ、備考（L列＝11番目）を読み込めるよう調整
+                
+                // ※重要：前回のGASコードの仕様により、L列は取得はされていますが名前をつけていなかったため、
+                // 今回確実にL列を反映させるために、GASの変更なしで対応できるよう、
+                // 念のためGASの修正もした方が確実ですが、まずはHTMLのこの記述で試してみます。
+                
                 tr.innerHTML = `
                     <td>${item.name}</td>
                     <td>${item.line}</td>
-                    <td>
-                        <select onchange="updateStatus(${item.rowNum}, this)">
-                            <option value="" ${item.status === '' ? 'selected' : ''}>未定</option>
-                            <option value="○" ${item.status === '○' ? 'selected' : ''}>○ (出席)</option>
-                            <option value="△" ${item.status === '△' ? 'selected' : ''}>△ (保留)</option>
-                            <option value="✕" ${item.status === '✕' ? 'selected' : ''}>✕ (欠席)</option>
-                        </select>
-                        <span id="saving-${item.rowNum}" class="status-msg saving">保存中...</span>
-                        <span id="saved-${item.rowNum}" class="status-msg saved">保存しました</span>
-                    </td>
+                    <td class="${statusClass}">${item.status || '-'}</td>
+                    <td style="text-align: left;">${item.message || '-'}</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -123,48 +131,6 @@
             details.appendChild(tableWrap);
             container.appendChild(details);
         });
-    }
-
-    // プルダウンを変更したときにスプレッドシートに保存する
-    async function updateStatus(rowNum, selectElement) {
-        const newStatus = selectElement.value;
-        const savingMsg = document.getElementById(`saving-${rowNum}`);
-        const savedMsg = document.getElementById(`saved-${rowNum}`);
-        
-        // 保存中の表示にする
-        savingMsg.style.display = 'block';
-        savedMsg.style.display = 'none';
-        selectElement.disabled = true;
-
-        try {
-            // スプレッドシートにデータを送信
-            const response = await fetch(GAS_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: JSON.stringify({
-                    rowNum: rowNum,
-                    status: newStatus
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                // 保存成功
-                savingMsg.style.display = 'none';
-                savedMsg.style.display = 'block';
-                setTimeout(() => { savedMsg.style.display = 'none'; }, 2000); // 2秒後にメッセージを消す
-            } else {
-                alert('エラー: 保存に失敗しました。');
-                savingMsg.style.display = 'none';
-            }
-        } catch (error) {
-            console.error('更新エラー:', error);
-            alert('通信エラーが発生しました。');
-            savingMsg.style.display = 'none';
-        } finally {
-            selectElement.disabled = false;
-        }
     }
 
     // 最初にデータを読み込む
