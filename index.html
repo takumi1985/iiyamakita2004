@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2004年卒 飯山北高校 同窓会 出欠状況確認</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f7f6; color: #333; line-height: 1.6; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 30px; }
+        .info-section { background-color: #e8f4f8; padding: 15px; border-radius: 5px; margin-bottom: 30px; }
+        .info-item { margin-bottom: 10px; font-size: 1.1em; }
+        .info-label { font-weight: bold; color: #2980b9; display: inline-block; width: 80px; }
+        
+        /* アコーディオン（▽で開くやつ）のデザイン */
+        details { margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #fff; }
+        summary { padding: 15px; font-size: 1.2em; font-weight: bold; background-color: #f8f9fa; cursor: pointer; list-style: none; position: relative; color: #34495e;}
+        summary::-webkit-details-marker { display: none; }
+        summary::after { content: '▽'; position: absolute; right: 15px; transition: transform 0.2s; color: #7f8c8d; }
+        details[open] summary::after { transform: rotate(180deg); } /* 開いた時に△になる */
+        details[open] summary { border-bottom: 1px solid #ddd; }
+        
+        .table-wrap { overflow-x: auto; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; min-width: 500px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background-color: #f2f2f2; }
+        select { padding: 8px; font-size: 1em; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; }
+        
+        /* 保存状態のメッセージ */
+        .status-msg { font-size: 0.8em; margin-top: 5px; display: block; font-weight: bold; }
+        .saving { color: #f39c12; display: none; }
+        .saved { color: #27ae60; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>2004年卒 飯山北高校 同窓会<br>出欠状況確認</h1>
+
+    <div class="info-section">
+        <div class="info-item"><span class="info-label">開催日:</span> 2026年9月21日</div>
+        <div class="info-item"><span class="info-label">場　所:</span> 未定</div>
+    </div>
+
+    <div id="attendance-container">
+        <p style="text-align: center; color: #666;">データを読み込み中...</p>
+    </div>
+</div>
+
+<script>
+    // ご提示いただいた正しいGASのURLを設定しました
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzj5oGeqAugMxOksian6vKSZnim7j-0udgI6iaKQ271yL9Azv-Y622J0ffzQg1aB78smw/exec';
+
+    // ページ読み込み時にデータを取得する
+    async function fetchAttendanceData() {
+        const container = document.getElementById('attendance-container');
+        try {
+            const response = await fetch(GAS_URL);
+            const data = await response.json();
+            renderAccordion(data);
+        } catch (error) {
+            console.error('取得エラー:', error);
+            container.innerHTML = '<p style="color:red; text-align:center;">データの読み込みに失敗しました。</p>';
+        }
+    }
+
+    // 1〜4組のアコーディオンを作成する
+    function renderAccordion(data) {
+        const container = document.getElementById('attendance-container');
+        container.innerHTML = ''; 
+
+        const groups = ['1組', '2組', '3組', '4組'];
+        
+        groups.forEach(groupName => {
+            // その組のデータだけを抽出（数字だけを比較）
+            const groupData = data.filter(item => String(item.group).includes(groupName.replace('組', '')));
+            
+            if (groupData.length === 0) return; // データがない組はスキップ
+
+            // アコーディオン（details要素）を作成
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = `${groupName} （${groupData.length}名）`;
+            details.appendChild(summary);
+
+            const tableWrap = document.createElement('div');
+            tableWrap.className = 'table-wrap';
+            
+            // テーブルを作成
+            const table = document.createElement('table');
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>氏名</th>
+                        <th>LINE</th>
+                        <th>出欠</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            `;
+            
+            const tbody = table.querySelector('tbody');
+            groupData.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.name}</td>
+                    <td>${item.line}</td>
+                    <td>
+                        <select onchange="updateStatus(${item.rowNum}, this)">
+                            <option value="" ${item.status === '' ? 'selected' : ''}>未定</option>
+                            <option value="○" ${item.status === '○' ? 'selected' : ''}>○ (出席)</option>
+                            <option value="△" ${item.status === '△' ? 'selected' : ''}>△ (保留)</option>
+                            <option value="✕" ${item.status === '✕' ? 'selected' : ''}>✕ (欠席)</option>
+                        </select>
+                        <span id="saving-${item.rowNum}" class="status-msg saving">保存中...</span>
+                        <span id="saved-${item.rowNum}" class="status-msg saved">保存しました</span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            tableWrap.appendChild(table);
+            details.appendChild(tableWrap);
+            container.appendChild(details);
+        });
+    }
+
+    // プルダウンを変更したときにスプレッドシートに保存する
+    async function updateStatus(rowNum, selectElement) {
+        const newStatus = selectElement.value;
+        const savingMsg = document.getElementById(`saving-${rowNum}`);
+        const savedMsg = document.getElementById(`saved-${rowNum}`);
+        
+        // 保存中の表示にする
+        savingMsg.style.display = 'block';
+        savedMsg.style.display = 'none';
+        selectElement.disabled = true;
+
+        try {
+            // スプレッドシートにデータを送信
+            const response = await fetch(GAS_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: JSON.stringify({
+                    rowNum: rowNum,
+                    status: newStatus
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // 保存成功
+                savingMsg.style.display = 'none';
+                savedMsg.style.display = 'block';
+                setTimeout(() => { savedMsg.style.display = 'none'; }, 2000); // 2秒後にメッセージを消す
+            } else {
+                alert('エラー: 保存に失敗しました。');
+                savingMsg.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('更新エラー:', error);
+            alert('通信エラーが発生しました。');
+            savingMsg.style.display = 'none';
+        } finally {
+            selectElement.disabled = false;
+        }
+    }
+
+    // 最初にデータを読み込む
+    fetchAttendanceData();
+</script>
+
+</body>
+</html>
